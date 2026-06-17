@@ -391,8 +391,25 @@ void DabMultiplexer::prepare_services_components()
         }
     }
 
-    // Init packet components SCId
-    int cur_packetid = 0;
+    // Init packet components SCId.
+    // Auto-assign a unique SCId to each packet component, starting at 1.
+    // SCId 0 is avoided because, although not formally reserved, it is widely
+    // treated by receivers as "no component identifier" and breaks the
+    // FIG 0/2 to FIG 0/3 association for SPI/MOT packet services, so the
+    // component is never bound to its subchannel and decode never starts.
+    // A component may also carry an SCId set explicitly from configuration
+    // (component->packet.id != 0), which is honoured as-is.
+    std::set<uint16_t> used_packetids;
+    for (auto component : ensemble->components) {
+        subchannel = getSubchannel(ensemble->subchannels, component->subchId);
+        if (subchannel != ensemble->subchannels.end()
+                and (*subchannel)->type == subchannel_type_t::Packet
+                and component->packet.id != 0) {
+            used_packetids.insert(component->packet.id);
+        }
+    }
+
+    int cur_packetid = 1;
     for (auto component : ensemble->components) {
         subchannel = getSubchannel(ensemble->subchannels,
                 component->subchId);
@@ -404,8 +421,12 @@ void DabMultiplexer::prepare_services_components()
             throw MuxInitException();
         }
 
-        if ((*subchannel)->type == subchannel_type_t::Packet) {
-            component->packet.id = cur_packetid++;
+        if ((*subchannel)->type == subchannel_type_t::Packet
+                and component->packet.id == 0) {
+            while (used_packetids.count(cur_packetid)) cur_packetid++;
+            component->packet.id = cur_packetid;
+            used_packetids.insert(cur_packetid);
+            cur_packetid++;
         }
 
         rcs.enrol(component.get());
@@ -1024,4 +1045,3 @@ const json::map_t DabMultiplexer::get_all_values() const
     }
     return map;
 }
-

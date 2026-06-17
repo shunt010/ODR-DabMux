@@ -983,6 +983,19 @@ void parse_ptree(
         }
 
         if (component->isPacketComponent(ensemble->subchannels)) {
+            int packet_id = hexparse(pt_comp.get("id", "-1"));
+            if (packet_id != -1) {
+                if (packet_id < 0 or packet_id > 0xFFF) {
+                    stringstream ss;
+                    ss << "Component with uid " << componentuid <<
+                        ": packet id (SCId) '" << packet_id <<
+                        "' is out of range (0x000 - 0xFFF) !";
+                    throw runtime_error(ss.str());
+                }
+
+                component->packet.id = packet_id;
+            }
+
             int packet_address = hexparse(pt_comp.get("address", "-1"));
             if (packet_address != -1) {
                 if (! component->isPacketComponent(ensemble->subchannels)) {
@@ -1342,4 +1355,3 @@ static void setup_subchannel_from_ptree(shared_ptr<DabSubchannel>& subchan,
         throw runtime_error(ss.str());
     }
 }
-
